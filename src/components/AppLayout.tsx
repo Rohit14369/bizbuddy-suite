@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, Menu, X, AlertTriangle, LogOut, Phone as PhoneIcon } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, Menu, X, AlertTriangle, LogOut, Phone as PhoneIcon, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import logo from '@/assets/logo.jpeg';
 import Footer from './Footer';
@@ -16,6 +16,7 @@ const adminNavItems = [
 ];
 
 const userNavItems = [
+  { title: 'Attendance', path: '/attendance', icon: ClipboardCheck },
   { title: 'Products', path: '/products', icon: Package },
   { title: 'Low Stock', path: '/low-stock', icon: AlertTriangle },
   { title: 'Contact Us', path: '/contact', icon: PhoneIcon },

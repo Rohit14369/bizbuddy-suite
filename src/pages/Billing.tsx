@@ -1,12 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore, BillItem } from '@/context/StoreContext';
-import { Plus, Trash2, Printer, History } from 'lucide-react';
+import { Plus, Trash2, Printer, History, Send, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
+
+interface ApiProduct {
+  _id: string;
+  name: string;
+  code: string;
+  category: string;
+  normalPrice: number;
+  retailerPrice: number;
+  buyingPrice: number;
+  stock: number;
+  image?: string;
+}
 
 interface ApiBill {
   _id: string;
@@ -19,10 +31,13 @@ interface ApiBill {
   createdAt: string;
 }
 
+const WHATSAPP_NUMBER = '919359458298';
+
 export default function Billing() {
-  const { products, addBill, shopInfo } = useStore();
+  const { shopInfo } = useStore();
   const { toast } = useToast();
 
+  const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerType, setCustomerType] = useState<'normal' | 'retailer'>('normal');
   const [items, setItems] = useState<BillItem[]>([]);
@@ -32,38 +47,100 @@ export default function Billing() {
   const [showHistory, setShowHistory] = useState(false);
   const [billHistory, setBillHistory] = useState<ApiBill[]>([]);
 
-  // Manual item entry
-  const [itemName, setItemName] = useState('');
-  const [itemPrice, setItemPrice] = useState(0);
+  // Product search
+  const [productSearch, setProductSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [itemQty, setItemQty] = useState(1);
+  const searchRef = useRef<HTMLDivElement>(null);
 
-  const addItem = () => {
-    if (!itemName || itemPrice <= 0 || itemQty <= 0) {
-      toast({ title: 'Missing info', description: 'Enter product name, price and quantity', variant: 'destructive' });
-      return;
-    }
-    const total = itemPrice * itemQty;
-    const matchedProduct = products.find(p => p.name.toLowerCase() === itemName.toLowerCase());
-    const productId = matchedProduct ? matchedProduct.id : Date.now().toString();
-    const existing = items.find(i => i.productName.toLowerCase() === itemName.toLowerCase());
+  // Fetch products from backend
+  useEffect(() => {
+    api.get('/products')
+      .then(res => setAllProducts(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {});
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Filter products by name or code
+  const filteredProducts = productSearch.trim()
+    ? allProducts.filter(p =>
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.code?.toLowerCase().includes(productSearch.toLowerCase())
+      )
+    : [];
+
+  const selectProduct = (product: ApiProduct) => {
+    const price = customerType === 'retailer' ? product.retailerPrice : product.normalPrice;
+    const existing = items.find(i => i.productId === product._id);
     if (existing) {
-      setItems(items.map(i => i.productName.toLowerCase() === itemName.toLowerCase()
-        ? { ...i, quantity: i.quantity + itemQty, total: (i.quantity + itemQty) * i.price }
-        : i
+      setItems(items.map(i =>
+        i.productId === product._id
+          ? { ...i, quantity: i.quantity + itemQty, total: (i.quantity + itemQty) * i.price }
+          : i
       ));
     } else {
-      setItems([...items, { productId, productName: itemName, quantity: itemQty, price: itemPrice, total }]);
+      setItems([...items, {
+        productId: product._id,
+        productName: product.name,
+        quantity: itemQty,
+        price,
+        total: price * itemQty,
+      }]);
     }
-    setItemName('');
-    setItemPrice(0);
+    setProductSearch('');
+    setShowDropdown(false);
     setItemQty(1);
   };
 
   const removeItem = (productId: string) => setItems(items.filter(i => i.productId !== productId));
 
+  // Recalculate prices when customer type changes
+  useEffect(() => {
+    if (items.length > 0 && allProducts.length > 0) {
+      setItems(prev => prev.map(item => {
+        const product = allProducts.find(p => p._id === item.productId);
+        if (product) {
+          const newPrice = customerType === 'retailer' ? product.retailerPrice : product.normalPrice;
+          return { ...item, price: newPrice, total: newPrice * item.quantity };
+        }
+        return item;
+      }));
+    }
+  }, [customerType]);
+
   const subtotal = items.reduce((s, i) => s + i.total, 0);
   const discountAmount = (subtotal * discount) / 100;
   const total = subtotal - discountAmount;
+
+  const buildBillText = (bill: any) => {
+    let text = `🧾 *${shopInfo.name}*\n`;
+    text += `📍 ${shopInfo.address}\n`;
+    text += `📞 ${shopInfo.contact}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `👤 Customer: *${bill.customerName}*\n`;
+    text += `📅 Date: ${bill.date}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    bill.items.forEach((item: BillItem, i: number) => {
+      text += `${i + 1}. ${item.productName}\n   ${item.quantity} × ₹${item.price} = ₹${item.total}\n`;
+    });
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `Subtotal: ₹${bill.subtotal}\n`;
+    if (bill.discount > 0) text += `Discount (${bill.discount}%): -₹${(bill.subtotal * bill.discount / 100).toFixed(0)}\n`;
+    text += `*Total: ₹${bill.total.toLocaleString('en-IN')}*\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `${shopInfo.tagline}`;
+    return text;
+  };
 
   const generateBill = async () => {
     if (!customerName.trim() || items.length === 0) {
@@ -75,49 +152,55 @@ export default function Billing() {
       customerName: customerName.trim(),
       customerType,
       discount,
-      items: items.map(i => ({
-        productName: i.productName,
-        category: products.find(p => p.name.toLowerCase() === i.productName.toLowerCase())?.category || 'general',
-        price: i.price,
-        quantity: i.quantity,
-        total: i.total,
-      })),
+      items: items.map(i => {
+        const product = allProducts.find(p => p._id === i.productId);
+        return {
+          productName: i.productName,
+          category: product?.category || 'general',
+          price: i.price,
+          quantity: i.quantity,
+          total: i.total,
+        };
+      }),
+    };
+
+    const billData = {
+      customerName: customerName.trim(),
+      customerType,
+      items: [...items],
+      subtotal,
+      discount,
+      total,
+      date: new Date().toISOString().split('T')[0],
+      billNo: `ST-${Date.now()}`,
     };
 
     try {
       const res = await api.post('/bills', billPayload);
       const apiBill = res.data?.bill;
-      setLastBill({
-        customerName: customerName.trim(),
-        customerType,
-        items,
-        subtotal,
-        discount,
-        total,
-        date: apiBill?.createdAt ? new Date(apiBill.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        billNo: `ST-${Date.now()}`,
-      });
+      if (apiBill?.createdAt) {
+        billData.date = new Date(apiBill.createdAt).toISOString().split('T')[0];
+      }
       toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     } catch {
-      // Fallback to local
-      const bill = {
-        customerId: customerName.trim().toLowerCase().replace(/\s+/g, '-'),
-        customerName: customerName.trim(),
-        customerType,
-        items,
-        subtotal,
-        discount,
-        total,
-      };
-      addBill(bill);
-      setLastBill({ ...bill, date: new Date().toISOString().split('T')[0], billNo: `ST-${Date.now()}` });
-      toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
+      toast({ title: 'Bill Generated (offline)!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     }
 
+    setLastBill(billData);
     setShowBill(true);
     setItems([]);
     setDiscount(0);
     setCustomerName('');
+  };
+
+  const sendWhatsApp = () => {
+    if (!lastBill) return;
+    const text = encodeURIComponent(buildBillText(lastBill));
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${text}`, '_blank');
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const fetchBillHistory = async () => {
@@ -140,11 +223,6 @@ export default function Billing() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-    setShowBill(false);
-  };
-
   const selectClass = "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 input-focus";
 
   return (
@@ -157,7 +235,6 @@ export default function Billing() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Item Selection */}
         <div className="lg:col-span-2 space-y-4">
           {/* Customer Info */}
           <div className="glass-card p-4 space-y-4 animate-slide-up">
@@ -165,20 +242,11 @@ export default function Billing() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Customer Name</Label>
-                <Input
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                  placeholder="e.g. Raj, Ahmed..."
-                  className="input-focus"
-                />
+                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="e.g. Raj, Ahmed..." className="input-focus" />
               </div>
               <div className="space-y-2">
                 <Label>Customer Type</Label>
-                <select
-                  value={customerType}
-                  onChange={e => setCustomerType(e.target.value as any)}
-                  className={selectClass}
-                >
+                <select value={customerType} onChange={e => setCustomerType(e.target.value as any)} className={selectClass}>
                   <option value="normal">Normal</option>
                   <option value="retailer">Retailer</option>
                 </select>
@@ -190,46 +258,61 @@ export default function Billing() {
             </div>
           </div>
 
-          {/* Add Item */}
+          {/* Add Item - Product Search */}
           <div className="glass-card p-4 space-y-4 animate-slide-up" style={{ animationDelay: '100ms' }}>
             <h3 className="font-display font-semibold">Add Items</h3>
-            <p className="text-xs text-muted-foreground italic">e.g. Product: Almonds (Badam), Price: 850, Qty: 2</p>
+            <p className="text-xs text-muted-foreground italic">Search by product name or code. Price auto-sets based on customer type.</p>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="sm:col-span-2 space-y-1">
-                <Label className="text-xs">Product Name</Label>
-                <Input
-                  value={itemName}
-                  onChange={e => setItemName(e.target.value)}
-                  placeholder="e.g. Almonds (Badam)"
-                  className="input-focus"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Price ₹</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={itemPrice || ''}
-                  onChange={e => setItemPrice(+e.target.value)}
-                  placeholder="₹ 0"
-                  className="input-focus"
-                />
+              <div className="sm:col-span-3 space-y-1 relative" ref={searchRef}>
+                <Label className="text-xs">Product Name / Code</Label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={productSearch}
+                    onChange={e => { setProductSearch(e.target.value); setShowDropdown(true); }}
+                    onFocus={() => productSearch.trim() && setShowDropdown(true)}
+                    placeholder="Search product name or code..."
+                    className="pl-9 input-focus"
+                  />
+                </div>
+                {/* Dropdown */}
+                {showDropdown && filteredProducts.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                    {filteredProducts.map(p => (
+                      <button
+                        key={p._id}
+                        onClick={() => selectProduct(p)}
+                        className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Code: {p.code} • Stock: {p.stock} • Category: {p.category}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-primary">
+                              ₹{customerType === 'retailer' ? p.retailerPrice : p.normalPrice}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {customerType === 'retailer' ? 'Retailer' : 'Normal'} Price
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showDropdown && productSearch.trim() && filteredProducts.length === 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl p-4 text-center text-sm text-muted-foreground">
+                    No products found for "{productSearch}"
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Qty</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={itemQty}
-                    onChange={e => setItemQty(+e.target.value)}
-                    placeholder="1"
-                    className="input-focus"
-                  />
-                  <Button onClick={addItem} className="gradient-primary text-primary-foreground gap-2 hover-glow shrink-0">
-                    <Plus size={16} /> Add
-                  </Button>
-                </div>
+                <Input type="number" min={1} value={itemQty} onChange={e => setItemQty(+e.target.value)} placeholder="1" className="input-focus" />
               </div>
             </div>
           </div>
@@ -271,7 +354,6 @@ export default function Billing() {
         <div className="space-y-4">
           <div className="glass-card p-6 space-y-4 animate-slide-up sticky top-20" style={{ animationDelay: '150ms' }}>
             <h3 className="font-display text-lg font-semibold">Bill Summary</h3>
-
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span>{items.length}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="font-medium">₹{subtotal.toLocaleString('en-IN')}</span></div>
@@ -283,7 +365,6 @@ export default function Billing() {
                 <span className="text-primary">₹{total.toLocaleString('en-IN')}</span>
               </div>
             </div>
-
             <Button onClick={generateBill} className="w-full gradient-primary text-primary-foreground hover-glow cursor-pointer" disabled={items.length === 0 || !customerName.trim()}>
               Generate Bill
             </Button>
@@ -300,10 +381,10 @@ export default function Billing() {
               <div className="text-center border-b border-border pb-3">
                 <h2 className="font-display text-xl font-bold text-primary">{shopInfo.name}</h2>
                 <p className="text-xs text-muted-foreground">{shopInfo.address}</p>
-                <p className="text-xs text-muted-foreground">Imran: 8390090038 | Sadiq: 9359458298 | Dilshad: 9356720070</p>
+                <p className="text-xs text-muted-foreground">{shopInfo.contact}</p>
               </div>
               <div className="flex justify-between text-sm">
-                <span>Customer: <strong>{lastBill.customerName}</strong></span>
+                <span>Customer: <strong>{lastBill.customerName}</strong> ({lastBill.customerType})</span>
                 <span>Date: {lastBill.date}</span>
               </div>
               <table className="w-full text-sm">
@@ -328,6 +409,9 @@ export default function Billing() {
             </div>
           )}
           <div className="flex gap-2 justify-end print:hidden">
+            <Button variant="outline" onClick={sendWhatsApp} className="gap-2 text-success border-success/30 hover:bg-success/10">
+              <Send size={14} /> WhatsApp
+            </Button>
             <Button variant="outline" onClick={handlePrint} className="gap-2"><Printer size={14} /> Print</Button>
             <Button variant="outline" onClick={() => setShowBill(false)}>Close</Button>
           </div>
