@@ -14,6 +14,7 @@ import LowStock from "./pages/LowStock";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import ContactPage from "./pages/ContactPage";
+import Attendance from "./pages/Attendance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,13 +47,14 @@ function AppRoutes() {
           </>
         ) : (
           <>
-            <Route path="/" element={<Navigate to="/products" replace />} />
+            <Route path="/" element={<Navigate to="/attendance" replace />} />
+            <Route path="/attendance" element={<Attendance />} />
             <Route path="/products" element={<Products />} />
             <Route path="/low-stock" element={<LowStock />} />
             <Route path="/contact" element={<ContactPage />} />
           </>
         )}
-        <Route path="*" element={<Navigate to={isAdmin ? "/" : "/products"} replace />} />
+        <Route path="*" element={<Navigate to={isAdmin ? "/" : "/attendance"} replace />} />
       </Routes>
     </AppLayout>
   );

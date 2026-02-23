@@ -1,12 +1,23 @@
-import { useStore } from '@/context/StoreContext';
 import { useAuth } from '@/context/AuthContext';
-import { Search, Trash2, Pencil, X, Check } from 'lucide-react';
+import { Search, Trash2, Pencil, X, Check, FileDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/axios';
+
+interface ApiBill {
+  _id: string;
+  customerName: string;
+  customerType: string;
+  discount: number;
+  items: { productName: string; category: string; price: number; quantity: number; total: number }[];
+  subtotal: number;
+  total: number;
+  createdAt: string;
+}
 
 interface CustomerRow {
   key: string;
@@ -14,27 +25,37 @@ interface CustomerRow {
   type: string;
   totalPurchases: number;
   billCount: number;
+  bills: ApiBill[];
 }
 
 export default function Customers() {
-  const { bills, deleteCustomerBills, updateCustomerInBills } = useStore();
   const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
+  const [allBills, setAllBills] = useState<ApiBill[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ step: number; customer: CustomerRow | null }>({ step: 0, customer: null });
-  const [editCustomer, setEditCustomer] = useState<CustomerRow | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState('normal');
+  const [viewCustomer, setViewCustomer] = useState<CustomerRow | null>(null);
+
+  const fetchBills = async () => {
+    try {
+      const res = await api.get('/bills');
+      setAllBills(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setAllBills([]);
+    }
+  };
+
+  useEffect(() => { fetchBills(); }, []);
 
   const allCustomers = useMemo(() => {
     const customerMap = new Map<string, CustomerRow>();
-
-    bills.forEach(b => {
+    allBills.forEach(b => {
       const key = b.customerName.toLowerCase().trim();
       const existing = customerMap.get(key);
       if (existing) {
         existing.totalPurchases += b.total;
         existing.billCount += 1;
+        existing.bills.push(b);
       } else {
         customerMap.set(key, {
           key,
@@ -42,52 +63,69 @@ export default function Customers() {
           type: b.customerType,
           totalPurchases: b.total,
           billCount: 1,
+          bills: [b],
         });
       }
     });
-
     return Array.from(customerMap.values());
-  }, [bills]);
+  }, [allBills]);
 
-  const filtered = allCustomers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
-
+  const filtered = allCustomers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
   const grandTotal = filtered.reduce((sum, c) => sum + c.totalPurchases, 0);
   const totalBills = filtered.reduce((sum, c) => sum + c.billCount, 0);
 
-  const handleDeleteClick = (customer: CustomerRow) => {
-    setDeleteConfirm({ step: 1, customer });
-  };
-
-  const handleDeleteConfirmStep = () => {
-    if (deleteConfirm.step === 1) {
-      setDeleteConfirm({ ...deleteConfirm, step: 2 });
-    } else if (deleteConfirm.step === 2 && deleteConfirm.customer) {
-      deleteCustomerBills(deleteConfirm.customer.name);
-      toast({ title: 'Customer deleted', description: `${deleteConfirm.customer.name} and all their bills removed.` });
-      setDeleteConfirm({ step: 0, customer: null });
+  const handleDeleteBill = async (billId: string) => {
+    try {
+      await api.delete(`/bills/${billId}`);
+      toast({ title: 'Bill Deleted' });
+      await fetchBills();
+      // Close view if customer has no more bills
+      if (viewCustomer) {
+        const remaining = allBills.filter(b => b._id !== billId && b.customerName.toLowerCase().trim() === viewCustomer.key);
+        if (remaining.length === 0) setViewCustomer(null);
+      }
+    } catch {
+      toast({ title: 'Error deleting bill', variant: 'destructive' });
     }
   };
 
-  const handleEditClick = (customer: CustomerRow) => {
-    setEditCustomer(customer);
-    setEditName(customer.name);
-    setEditType(customer.type);
+  const handleDeleteAllCustomerBills = async () => {
+    if (!deleteConfirm.customer) return;
+    const customerBills = allBills.filter(b => b.customerName.toLowerCase().trim() === deleteConfirm.customer!.key);
+    try {
+      await Promise.all(customerBills.map(b => api.delete(`/bills/${b._id}`)));
+      toast({ title: 'Customer deleted', description: `${deleteConfirm.customer.name} and all bills removed.` });
+      await fetchBills();
+    } catch {
+      toast({ title: 'Error deleting', variant: 'destructive' });
+    }
+    setDeleteConfirm({ step: 0, customer: null });
   };
 
-  const handleEditSave = () => {
-    if (!editCustomer || !editName.trim()) return;
-    updateCustomerInBills(editCustomer.name, editName.trim(), editType as 'normal' | 'retailer');
-    toast({ title: 'Customer updated', description: `Updated to ${editName.trim()}` });
-    setEditCustomer(null);
+  const exportExcel = () => {
+    let csv = 'Customer Name,Type,Bills,Total Purchases\n';
+    filtered.forEach(c => {
+      csv += `"${c.name}","${c.type}",${c.billCount},${c.totalPurchases}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'customers.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
-
-  const selectClass = "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 input-focus";
 
   return (
     <div className="space-y-6">
-      <h1 className="page-header">Customers</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="page-header">Customers</h1>
+        {isAdmin && (
+          <Button variant="outline" onClick={exportExcel} className="gap-2">
+            <FileDown size={16} /> Export CSV
+          </Button>
+        )}
+      </div>
 
       <div className="relative max-w-sm">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -123,10 +161,10 @@ export default function Customers() {
                   {isAdmin && (
                     <td className="py-3 px-4 text-center">
                       <div className="flex justify-center gap-1">
-                        <button onClick={() => handleEditClick(c)} className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors" title="Edit">
+                        <button onClick={() => setViewCustomer(c)} className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors" title="View Bills">
                           <Pencil size={14} />
                         </button>
-                        <button onClick={() => handleDeleteClick(c)} className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors" title="Delete">
+                        <button onClick={() => setDeleteConfirm({ step: 1, customer: c })} className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors" title="Delete">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -152,7 +190,39 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog - 2 step */}
+      {/* View Customer Bills Dialog */}
+      <Dialog open={!!viewCustomer} onOpenChange={(open) => { if (!open) setViewCustomer(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display">{viewCustomer?.name} - Bills</DialogTitle></DialogHeader>
+          {viewCustomer && (
+            <div className="space-y-3">
+              {viewCustomer.bills.map(bill => (
+                <div key={bill._id} className="glass-card p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{new Date(bill.createdAt).toLocaleDateString('en-IN')}</p>
+                      <p className="text-xs">Discount: {bill.discount}%</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-primary">₹{bill.total.toLocaleString('en-IN')}</p>
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteBill(bill._id)} className="text-xs">
+                        <Trash2 size={12} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {bill.items.map((item, i) => (
+                      <span key={i}>{item.productName} x{item.quantity} (₹{item.price}){i < bill.items.length - 1 ? ', ' : ''}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
       <Dialog open={deleteConfirm.step > 0} onOpenChange={(open) => { if (!open) setDeleteConfirm({ step: 0, customer: null }); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -175,33 +245,12 @@ export default function Customers() {
               <Button variant="outline" onClick={() => setDeleteConfirm({ step: 0, customer: null })}>
                 <X size={14} className="mr-1" /> Cancel
               </Button>
-              <Button variant="destructive" onClick={handleDeleteConfirmStep}>
+              <Button variant="destructive" onClick={() => {
+                if (deleteConfirm.step === 1) setDeleteConfirm({ ...deleteConfirm, step: 2 });
+                else handleDeleteAllCustomerBills();
+              }}>
                 <Check size={14} className="mr-1" /> {deleteConfirm.step === 1 ? 'Yes, Delete' : 'Final Confirm - Delete!'}
               </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Customer Dialog */}
-      <Dialog open={!!editCustomer} onOpenChange={(open) => { if (!open) setEditCustomer(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="font-display">Edit Customer</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} className="input-focus" />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <select value={editType} onChange={e => setEditType(e.target.value)} className={selectClass}>
-                <option value="normal">Normal</option>
-                <option value="retailer">Retailer</option>
-              </select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setEditCustomer(null)}>Cancel</Button>
-              <Button onClick={handleEditSave} className="gradient-primary text-primary-foreground hover-glow">Save</Button>
             </div>
           </div>
         </DialogContent>
