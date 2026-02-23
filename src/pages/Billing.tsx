@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore, BillItem } from '@/context/StoreContext';
-import { Plus, Trash2, Printer } from 'lucide-react';
+import { Plus, Trash2, Printer, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/axios';
+
+interface ApiBill {
+  _id: string;
+  customerName: string;
+  customerType: string;
+  discount: number;
+  items: { productName: string; category: string; price: number; quantity: number; total: number }[];
+  subtotal: number;
+  total: number;
+  createdAt: string;
+}
 
 export default function Billing() {
   const { products, addBill, shopInfo } = useStore();
@@ -17,6 +29,8 @@ export default function Billing() {
   const [discount, setDiscount] = useState(0);
   const [showBill, setShowBill] = useState(false);
   const [lastBill, setLastBill] = useState<any>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [billHistory, setBillHistory] = useState<ApiBill[]>([]);
 
   // Manual item entry
   const [itemName, setItemName] = useState('');
@@ -51,27 +65,79 @@ export default function Billing() {
   const discountAmount = (subtotal * discount) / 100;
   const total = subtotal - discountAmount;
 
-  const generateBill = () => {
+  const generateBill = async () => {
     if (!customerName.trim() || items.length === 0) {
       toast({ title: 'Missing info', description: 'Enter customer name and add items', variant: 'destructive' });
       return;
     }
-    const bill = {
-      customerId: customerName.trim().toLowerCase().replace(/\s+/g, '-'),
+
+    const billPayload = {
       customerName: customerName.trim(),
       customerType,
-      items,
-      subtotal,
       discount,
-      total,
+      items: items.map(i => ({
+        productName: i.productName,
+        category: products.find(p => p.name.toLowerCase() === i.productName.toLowerCase())?.category || 'general',
+        price: i.price,
+        quantity: i.quantity,
+        total: i.total,
+      })),
     };
-    addBill(bill);
-    setLastBill({ ...bill, date: new Date().toISOString().split('T')[0], billNo: `ST-${Date.now()}` });
+
+    try {
+      const res = await api.post('/bills', billPayload);
+      const apiBill = res.data?.bill;
+      setLastBill({
+        customerName: customerName.trim(),
+        customerType,
+        items,
+        subtotal,
+        discount,
+        total,
+        date: apiBill?.createdAt ? new Date(apiBill.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        billNo: `ST-${Date.now()}`,
+      });
+      toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
+    } catch {
+      // Fallback to local
+      const bill = {
+        customerId: customerName.trim().toLowerCase().replace(/\s+/g, '-'),
+        customerName: customerName.trim(),
+        customerType,
+        items,
+        subtotal,
+        discount,
+        total,
+      };
+      addBill(bill);
+      setLastBill({ ...bill, date: new Date().toISOString().split('T')[0], billNo: `ST-${Date.now()}` });
+      toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
+    }
+
     setShowBill(true);
-    toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     setItems([]);
     setDiscount(0);
     setCustomerName('');
+  };
+
+  const fetchBillHistory = async () => {
+    try {
+      const res = await api.get('/bills');
+      setBillHistory(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setBillHistory([]);
+    }
+    setShowHistory(true);
+  };
+
+  const deleteBill = async (id: string) => {
+    try {
+      await api.delete(`/bills/${id}`);
+      toast({ title: 'Bill Deleted' });
+      setBillHistory(prev => prev.filter(b => b._id !== id));
+    } catch {
+      toast({ title: 'Error deleting bill', variant: 'destructive' });
+    }
   };
 
   const handlePrint = () => {
@@ -83,7 +149,12 @@ export default function Billing() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-header">Billing</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="page-header">Billing</h1>
+        <Button variant="outline" onClick={fetchBillHistory} className="gap-2">
+          <History size={16} /> Bill History
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Item Selection */}
@@ -260,6 +331,40 @@ export default function Billing() {
             <Button variant="outline" onClick={handlePrint} className="gap-2"><Printer size={14} /> Print</Button>
             <Button variant="outline" onClick={() => setShowBill(false)}>Close</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bill History Dialog */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display">Bill History</DialogTitle></DialogHeader>
+          {billHistory.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No bills found.</p>
+          ) : (
+            <div className="space-y-3">
+              {billHistory.map(bill => (
+                <div key={bill._id} className="glass-card p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold">{bill.customerName} <span className="text-xs text-muted-foreground">({bill.customerType})</span></p>
+                      <p className="text-xs text-muted-foreground">{new Date(bill.createdAt).toLocaleDateString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-primary">₹{bill.total.toLocaleString('en-IN')}</p>
+                      <Button size="sm" variant="destructive" onClick={() => deleteBill(bill._id)} className="text-xs">
+                        <Trash2 size={12} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {bill.items.map((item, i) => (
+                      <span key={i}>{item.productName} x{item.quantity}{i < bill.items.length - 1 ? ', ' : ''}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

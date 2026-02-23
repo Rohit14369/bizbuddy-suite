@@ -1,22 +1,68 @@
 import { useStore } from '@/context/StoreContext';
 import { Package, ShoppingCart, Users, AlertTriangle, TrendingUp, IndianRupee } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import api from '@/lib/axios';
+
+interface DashboardData {
+  totalProducts: number;
+  totalStock: number;
+  lowStockItems: number;
+  totalCustomers: number;
+  todayBills: number;
+  totalRevenue: number;
+  normalCustomerRevenue: number;
+  retailerCustomerRevenue: number;
+  todayRevenue: number;
+  todayBillsGenerated: number;
+  recentBills: {
+    billNo: string;
+    customerName: string;
+    customerType: string;
+    date: string;
+    total: number;
+  }[];
+}
 
 export default function Dashboard() {
   const { products, bills, customers } = useStore();
+  const [apiData, setApiData] = useState<DashboardData | null>(null);
 
-  const totalStock = products.reduce((s, p) => s + p.stock, 0);
-  const lowStockCount = products.filter(p => p.stock <= 10).length;
-  const totalRevenue = bills.reduce((s, b) => s + b.total, 0);
-  const todayBills = bills.filter(b => b.date === new Date().toISOString().split('T')[0]);
-  const todayRevenue = todayBills.reduce((s, b) => s + b.total, 0);
+  useEffect(() => {
+    api.get('/dashboard')
+      .then(res => {
+        if (res.data?.success) {
+          setApiData(res.data.data);
+        }
+      })
+      .catch(() => {
+        // Fallback to local data
+      });
+  }, []);
+
+  // Use API data if available, otherwise fallback to local
+  const totalStock = apiData?.totalStock ?? products.reduce((s, p) => s + p.stock, 0);
+  const lowStockCount = apiData?.lowStockItems ?? products.filter(p => p.stock <= 10).length;
+  const totalRevenue = apiData?.totalRevenue ?? bills.reduce((s, b) => s + b.total, 0);
+  const todayBillsCount = apiData?.todayBillsGenerated ?? bills.filter(b => b.date === new Date().toISOString().split('T')[0]).length;
+  const todayRevenue = apiData?.todayRevenue ?? bills.filter(b => b.date === new Date().toISOString().split('T')[0]).reduce((s, b) => s + b.total, 0);
+  const totalProducts = apiData?.totalProducts ?? products.length;
+  const totalCustomers = apiData?.totalCustomers ?? customers.length;
+
+  const recentBills = apiData?.recentBills ?? bills.slice(-5).reverse().map(b => ({
+    billNo: b.billNo,
+    customerName: b.customerName,
+    customerType: b.customerType,
+    date: b.date,
+    total: b.total,
+  }));
 
   const stats = [
-    { label: 'Total Products', value: products.length, icon: Package, color: 'text-primary' },
+    { label: 'Total Products', value: totalProducts, icon: Package, color: 'text-primary' },
     { label: 'Total Stock', value: totalStock + ' units', icon: TrendingUp, color: 'text-emerald-light' },
     { label: 'Low Stock Items', value: lowStockCount, icon: AlertTriangle, color: 'text-warning', link: '/low-stock' },
-    { label: 'Total Customers', value: customers.length, icon: Users, color: 'text-accent' },
-    { label: "Today's Bills", value: todayBills.length, icon: ShoppingCart, color: 'text-primary' },
+    { label: 'Total Customers', value: totalCustomers, icon: Users, color: 'text-accent' },
+    { label: "Today's Bills", value: todayBillsCount, icon: ShoppingCart, color: 'text-primary' },
     { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-success' },
   ];
 
@@ -58,13 +104,13 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Bills Generated</p>
-            <p className="text-xl font-bold">{todayBills.length}</p>
+            <p className="text-xl font-bold">{todayBillsCount}</p>
           </div>
         </div>
       </div>
 
       {/* Recent Bills */}
-      {bills.length > 0 && (
+      {recentBills.length > 0 && (
         <div className="glass-card p-6 animate-slide-up">
           <h3 className="font-display text-lg font-semibold mb-4">Recent Bills</h3>
           <div className="overflow-x-auto">
@@ -78,8 +124,8 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {bills.slice(-5).reverse().map(bill => (
-                  <tr key={bill.id} className="table-row-hover border-b border-border/50">
+                {recentBills.map((bill, idx) => (
+                  <tr key={idx} className="table-row-hover border-b border-border/50">
                     <td className="py-2.5 font-medium">{bill.billNo}</td>
                     <td className="py-2.5">{bill.customerName}</td>
                     <td className="py-2.5 text-muted-foreground">{bill.date}</td>

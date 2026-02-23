@@ -3,10 +3,20 @@ import { useAuth } from '@/context/AuthContext';
 import { AlertTriangle, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/axios';
+
+interface LowStockProduct {
+  _id: string;
+  id: string;
+  name: string;
+  category: string;
+  code: string;
+  stock: number;
+}
 
 export default function LowStock() {
   const { products, updateStock } = useStore();
@@ -15,8 +25,32 @@ export default function LowStock() {
   const [restockOpen, setRestockOpen] = useState(false);
   const [restockId, setRestockId] = useState('');
   const [restockQty, setRestockQty] = useState(0);
+  const [apiProducts, setApiProducts] = useState<LowStockProduct[] | null>(null);
 
-  const lowStock = products.filter(p => p.stock <= 10).sort((a, b) => a.stock - b.stock);
+  const fetchLowStock = () => {
+    api.get('/low-stock')
+      .then(res => {
+        if (res.data?.success) {
+          setApiProducts(res.data.data.map((p: any) => ({
+            _id: p._id,
+            id: p._id,
+            name: p.name,
+            category: p.category,
+            code: p.code || '',
+            stock: p.stock,
+          })));
+        }
+      })
+      .catch(() => {
+        // Fallback to local
+      });
+  };
+
+  useEffect(() => {
+    fetchLowStock();
+  }, []);
+
+  const lowStock = apiProducts ?? products.filter(p => p.stock <= 10).sort((a, b) => a.stock - b.stock);
 
   const openRestock = (id: string) => {
     setRestockId(id);
@@ -24,11 +58,22 @@ export default function LowStock() {
     setRestockOpen(true);
   };
 
-  const handleRestock = (e: React.FormEvent) => {
+  const handleRestock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (restockQty <= 0) return;
-    updateStock(restockId, restockQty);
-    toast({ title: 'Stock Updated!', description: `Added ${restockQty} units.` });
+
+    try {
+      const res = await api.put(`/low-stock/${restockId}`, { qty: restockQty });
+      if (res.data?.success) {
+        toast({ title: 'Stock Updated!', description: `Added ${restockQty} units.` });
+        fetchLowStock();
+      }
+    } catch {
+      // Fallback to local
+      updateStock(restockId, restockQty);
+      toast({ title: 'Stock Updated!', description: `Added ${restockQty} units.` });
+    }
+
     setRestockOpen(false);
   };
 
