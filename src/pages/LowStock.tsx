@@ -122,14 +122,14 @@ export default function LowStock() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="text-warning" size={28} />
-          <h1 className="page-header">Low Stock Alert</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <AlertTriangle className="text-warning" size={24} />
+          <h1 className="page-header text-xl sm:text-2xl md:text-3xl">Low Stock Alert</h1>
         </div>
         {isAdmin && lowStock.length > 0 && (
-          <Button variant="outline" onClick={exportExcel} className="gap-2">
+          <Button variant="outline" onClick={exportExcel} className="gap-2 text-xs sm:text-sm w-full sm:w-auto">
             <FileDown size={16} /> Export CSV
           </Button>
         )}
@@ -152,9 +152,9 @@ export default function LowStock() {
           <p className="text-muted-foreground mt-1">No products with stock ≤ 10 currently.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {lowStock.map((p, i) => (
-            <div key={p.id} className="glass-card p-5 hover-lift animate-slide-up" style={{ animationDelay: `${i * 80}ms` }}>
+            <div key={p.id} className="glass-card p-3 sm:p-5 hover-lift animate-slide-up" style={{ animationDelay: `${i * 80}ms` }}>
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="font-semibold">{p.name}</h4>

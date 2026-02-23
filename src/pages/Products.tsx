@@ -86,16 +86,16 @@ export default function Products() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
         <div>
-          <h1 className="page-header">Products</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your inventory</p>
+          <h1 className="page-header text-xl sm:text-2xl md:text-3xl">Products</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">Manage your inventory</p>
         </div>
         {isAdmin && (
           <Button
             onClick={() => { setShowForm(!showForm); setEditing(null); setForm(emptyForm); }}
-            className="gradient-primary text-primary-foreground hover-glow gap-2"
+            className="gradient-primary text-primary-foreground hover-glow gap-2 w-full sm:w-auto"
           >
             <Plus size={16} /> Add Product
           </Button>
@@ -103,7 +103,7 @@ export default function Products() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search products..."
@@ -115,8 +115,8 @@ export default function Products() {
 
       {/* ================= ADMIN FORM ================= */}
       {isAdmin && showForm && (
-        <form onSubmit={submit} className="glass-card p-6 space-y-4 animate-slide-up">
-          <h3 className="font-display font-semibold text-lg">{editing ? "Edit Product" : "Add New Product"}</h3>
+        <form onSubmit={submit} className="glass-card p-4 sm:p-6 space-y-4 animate-slide-up">
+          <h3 className="font-display font-semibold text-base sm:text-lg">{editing ? "Edit Product" : "Add New Product"}</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -211,14 +211,14 @@ export default function Products() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
           {filtered.map((p, i) => (
             <div
               key={p._id || p.id || i}
               className="glass-card overflow-hidden hover-lift animate-slide-up group"
               style={{ animationDelay: `${i * 60}ms` }}
             >
-              <div className="relative h-48 overflow-hidden">
+              <div className="relative h-36 sm:h-48 overflow-hidden">
                 <img
                   src={p.image || "https://via.placeholder.com/300x200?text=No+Image"}
                   alt={p.name}
@@ -245,9 +245,9 @@ export default function Products() {
                 )}
               </div>
 
-              <div className="p-4 space-y-3">
+              <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
                 <div>
-                  <h3 className="font-display font-semibold text-lg">{p.name}</h3>
+                  <h3 className="font-display font-semibold text-base sm:text-lg truncate">{p.name}</h3>
                   {p.code && <p className="text-xs text-muted-foreground">Code: {p.code}</p>}
                 </div>
 

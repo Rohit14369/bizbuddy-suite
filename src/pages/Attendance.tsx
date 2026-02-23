@@ -40,13 +40,13 @@ export default function Attendance() {
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <ClipboardCheck className="text-primary" size={28} />
-        <h1 className="page-header">Attendance</h1>
+    <div className="max-w-md mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <ClipboardCheck className="text-primary" size={24} />
+        <h1 className="page-header text-xl sm:text-2xl md:text-3xl">Attendance</h1>
       </div>
 
-      <div className="glass-card p-6 space-y-6 animate-slide-up">
+      <div className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6 animate-slide-up">
         {!submitted ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">

@@ -226,19 +226,19 @@ export default function Billing() {
   const selectClass = "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 input-focus";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="page-header">Billing</h1>
-        <Button variant="outline" onClick={fetchBillHistory} className="gap-2">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <h1 className="page-header text-xl sm:text-2xl md:text-3xl">Billing</h1>
+        <Button variant="outline" onClick={fetchBillHistory} className="gap-2 text-xs sm:text-sm w-full sm:w-auto">
           <History size={16} /> Bill History
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4">
           {/* Customer Info */}
-          <div className="glass-card p-4 space-y-4 animate-slide-up">
-            <h3 className="font-display font-semibold">Customer Info</h3>
+          <div className="glass-card p-3 sm:p-4 space-y-3 sm:space-y-4 animate-slide-up">
+            <h3 className="font-display font-semibold text-sm sm:text-base">Customer Info</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Customer Name</Label>
@@ -259,11 +259,11 @@ export default function Billing() {
           </div>
 
           {/* Add Item - Product Search */}
-          <div className="glass-card p-4 space-y-4 animate-slide-up" style={{ animationDelay: '100ms' }}>
-            <h3 className="font-display font-semibold">Add Items</h3>
+          <div className="glass-card p-3 sm:p-4 space-y-3 sm:space-y-4 animate-slide-up" style={{ animationDelay: '100ms' }}>
+            <h3 className="font-display font-semibold text-sm sm:text-base">Add Items</h3>
             <p className="text-xs text-muted-foreground italic">Search by product name or code. Price auto-sets based on customer type.</p>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="sm:col-span-3 space-y-1 relative" ref={searchRef}>
+              <div className="sm:col-span-3 space-y-1" ref={searchRef} style={{ position: 'relative', zIndex: 100 }}>
                 <Label className="text-xs">Product Name / Code</Label>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -277,26 +277,26 @@ export default function Billing() {
                 </div>
                 {/* Dropdown */}
                 {showDropdown && filteredProducts.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                  <div className="absolute left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-2xl max-h-60 overflow-y-auto" style={{ zIndex: 9999 }}>
                     {filteredProducts.map(p => (
                       <button
                         key={p._id}
                         onClick={() => selectProduct(p)}
-                        className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                        className="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-sm">{p.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Code: {p.code} • Stock: {p.stock} • Category: {p.category}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              Code: {p.code} • Stock: {p.stock} • {p.category}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right flex-shrink-0">
                             <p className="text-sm font-bold text-primary">
                               ₹{customerType === 'retailer' ? p.retailerPrice : p.normalPrice}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              {customerType === 'retailer' ? 'Retailer' : 'Normal'} Price
+                              {customerType === 'retailer' ? 'Retailer' : 'Normal'}
                             </p>
                           </div>
                         </div>
@@ -305,7 +305,7 @@ export default function Billing() {
                   </div>
                 )}
                 {showDropdown && productSearch.trim() && filteredProducts.length === 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl p-4 text-center text-sm text-muted-foreground">
+                  <div className="absolute left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-2xl p-4 text-center text-sm text-muted-foreground" style={{ zIndex: 9999 }}>
                     No products found for "{productSearch}"
                   </div>
                 )}
@@ -319,40 +319,42 @@ export default function Billing() {
 
           {/* Items Table */}
           {items.length > 0 && (
-            <div className="glass-card overflow-hidden animate-slide-up" style={{ animationDelay: '200ms' }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border">
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Product</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Price</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Qty</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Total</th>
-                    <th className="py-3 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(item => (
-                    <tr key={item.productId} className="table-row-hover border-b border-border/50">
-                      <td className="py-3 px-4 font-medium">{item.productName}</td>
-                      <td className="py-3 px-4 text-right">₹{item.price}</td>
-                      <td className="py-3 px-4 text-right">{item.quantity}</td>
-                      <td className="py-3 px-4 text-right font-semibold">₹{item.total.toLocaleString('en-IN')}</td>
-                      <td className="py-3 px-4 text-right">
-                        <button onClick={() => removeItem(item.productId)} className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+            <div className="glass-card overflow-hidden animate-slide-up" style={{ animationDelay: '200ms', position: 'relative', zIndex: 1 }}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[400px]">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border">
+                      <th className="text-left py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground text-xs sm:text-sm">Product</th>
+                      <th className="text-right py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground text-xs sm:text-sm">Price</th>
+                      <th className="text-right py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground text-xs sm:text-sm">Qty</th>
+                      <th className="text-right py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground text-xs sm:text-sm">Total</th>
+                      <th className="py-2.5 sm:py-3 px-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {items.map(item => (
+                      <tr key={item.productId} className="table-row-hover border-b border-border/50">
+                        <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-xs sm:text-sm">{item.productName}</td>
+                        <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-right text-xs sm:text-sm">₹{item.price}</td>
+                        <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-right text-xs sm:text-sm">{item.quantity}</td>
+                        <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-right font-semibold text-xs sm:text-sm">₹{item.total.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 sm:py-3 px-2 text-right">
+                          <button onClick={() => removeItem(item.productId)} className="p-1 rounded hover:bg-destructive/10 text-destructive transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
 
         {/* Right: Bill Summary */}
         <div className="space-y-4">
-          <div className="glass-card p-6 space-y-4 animate-slide-up sticky top-20" style={{ animationDelay: '150ms' }}>
+          <div className="glass-card p-4 sm:p-6 space-y-4 animate-slide-up sticky top-20" style={{ animationDelay: '150ms', position: 'relative', zIndex: 1 }}>
             <h3 className="font-display text-lg font-semibold">Bill Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span>{items.length}</span></div>

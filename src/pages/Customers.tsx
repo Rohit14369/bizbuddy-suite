@@ -117,49 +117,51 @@ export default function Customers() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="page-header">Customers</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+        <h1 className="page-header text-xl sm:text-2xl md:text-3xl">Customers</h1>
         {isAdmin && (
-          <Button variant="outline" onClick={exportExcel} className="gap-2">
+          <Button variant="outline" onClick={exportExcel} className="gap-2 text-xs sm:text-sm w-full sm:w-auto">
             <FileDown size={16} /> Export CSV
           </Button>
         )}
       </div>
 
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input placeholder="Search by name..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 input-focus" />
       </div>
 
       <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto -mx-0">
+          <table className="w-full text-xs sm:text-sm min-w-[500px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Type</th>
-                <th className="text-center py-3 px-4 font-medium text-muted-foreground">Bills</th>
-                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Amount</th>
-                {isAdmin && <th className="text-center py-3 px-4 font-medium text-muted-foreground">Actions</th>}
+                <th className="text-left py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground">Name</th>
+                <th className="text-left py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground">Type</th>
+                <th className="text-center py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground">Bills</th>
+                <th className="text-right py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground">Amount</th>
+                {isAdmin && <th className="text-center py-2.5 sm:py-3 px-3 sm:px-4 font-medium text-muted-foreground">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((c, i) => (
                 <tr key={c.key} className="table-row-hover border-b border-border/50 animate-slide-up" style={{ animationDelay: `${i * 50}ms` }}>
-                  <td className="py-3 px-4 font-medium flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
-                      {c.name.charAt(0).toUpperCase()}
+                  <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-medium">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold flex-shrink-0">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate max-w-[100px] sm:max-w-none">{c.name}</span>
                     </div>
-                    {c.name}
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-2.5 sm:py-3 px-3 sm:px-4">
                     <span className={c.type === 'retailer' ? 'badge-success' : 'badge-warning'}>{c.type}</span>
                   </td>
-                  <td className="py-3 px-4 text-center">{c.billCount}</td>
-                  <td className="py-3 px-4 text-right font-semibold">₹{c.totalPurchases.toLocaleString('en-IN')}</td>
+                  <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-center">{c.billCount}</td>
+                  <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-right font-semibold">₹{c.totalPurchases.toLocaleString('en-IN')}</td>
                   {isAdmin && (
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2.5 sm:py-3 px-3 sm:px-4 text-center">
                       <div className="flex justify-center gap-1">
                         <button onClick={() => setViewCustomer(c)} className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors" title="View Bills">
                           <Pencil size={14} />
