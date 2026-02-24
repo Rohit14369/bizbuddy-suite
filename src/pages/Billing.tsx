@@ -188,13 +188,28 @@ export default function Billing() {
       if (apiBill?.createdAt) {
         billData.date = new Date(apiBill.createdAt).toISOString().split('T')[0];
       }
-      // Refetch products to update stock counts
-      try {
-        const prodRes = await api.get('/products');
-        setAllProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
-      } catch {}
+
+      // Frontend: update stock locally & send stock update to backend
+      const updatedProducts = allProducts.map(p => {
+        const billedItem = items.find(i => i.productId === p._id);
+        if (billedItem) {
+          const newStock = Math.max(0, p.stock - billedItem.quantity);
+          // Fire & forget stock update to backend
+          api.put(`/products/${p._id}`, { ...p, stock: newStock }).catch(() => {});
+          return { ...p, stock: newStock };
+        }
+        return p;
+      });
+      setAllProducts(updatedProducts);
+
       toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     } catch {
+      // Even offline, update stock locally
+      setAllProducts(prev => prev.map(p => {
+        const billedItem = items.find(i => i.productId === p._id);
+        if (billedItem) return { ...p, stock: Math.max(0, p.stock - billedItem.quantity) };
+        return p;
+      }));
       toast({ title: 'Bill Generated (offline)!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     }
 
