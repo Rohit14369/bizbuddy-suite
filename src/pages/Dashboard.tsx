@@ -11,7 +11,7 @@ interface DashboardData {
   totalCustomers: number;
   todayBills: number;
   totalRevenue: number;
-  normalCustomerRevenue: number;
+  normalCustomerRevenue: number;   
   retailerCustomerRevenue: number;
   todayRevenue: number;
   todayBillsGenerated: number;
@@ -35,27 +35,50 @@ export default function Dashboard() {
           setApiData(res.data.data);
         }
       })
-      .catch(() => {
-        // Fallback to local data
-      });
+      .catch(() => {});
   }, []);
 
-  // Use API data if available, otherwise fallback to local
+  const todayDateString = new Date().toLocaleDateString('en-CA'); 
+
   const totalStock = apiData?.totalStock ?? products.reduce((s, p) => s + p.stock, 0);
   const lowStockCount = apiData?.lowStockItems ?? products.filter(p => p.stock <= 10).length;
   const totalRevenue = apiData?.totalRevenue ?? bills.reduce((s, b) => s + b.total, 0);
-  const todayBillsCount = apiData?.todayBillsGenerated ?? bills.filter(b => b.date === new Date().toISOString().split('T')[0]).length;
-  const todayRevenue = apiData?.todayRevenue ?? bills.filter(b => b.date === new Date().toISOString().split('T')[0]).reduce((s, b) => s + b.total, 0);
+
+  const normalCustomerRevenue =
+    apiData?.normalCustomerRevenue ??
+    bills
+      .filter(b => b.customerType === 'normal')
+      .reduce((s, b) => s + b.total, 0);
+
+  const retailerCustomerRevenue =
+    apiData?.retailerCustomerRevenue ??
+    bills
+      .filter(b => b.customerType === 'retailer')
+      .reduce((s, b) => s + b.total, 0);
+
+  const todayBillsCount =
+    apiData?.todayBillsGenerated ??
+    bills.filter(b => {
+      const billDate = new Date(b.date).toLocaleDateString('en-CA');
+      return billDate === todayDateString;
+    }).length;
+
   const totalProducts = apiData?.totalProducts ?? products.length;
   const totalCustomers = apiData?.totalCustomers ?? customers.length;
 
-  const recentBills = apiData?.recentBills ?? bills.slice(-5).reverse().map(b => ({
-    billNo: b.billNo,
-    customerName: b.customerName,
-    customerType: b.customerType,
-    date: b.date,
-    total: b.total,
-  }));
+  const recentBills =
+    apiData?.recentBills ??
+    bills.slice(-5).reverse().map(b => ({
+      billNo: b.billNo,
+      customerName: b.customerName,
+      customerType: b.customerType,
+      date: new Date(b.date).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      total: b.total,
+    }));
 
   const stats = [
     { label: 'Total Products', value: totalProducts, icon: Package, color: 'text-primary' },
@@ -64,6 +87,8 @@ export default function Dashboard() {
     { label: 'Total Customers', value: totalCustomers, icon: Users, color: 'text-accent' },
     { label: "Today's Bills", value: todayBillsCount, icon: ShoppingCart, color: 'text-primary' },
     { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-success' },
+    { label: 'Normal Customer Revenue', value: `₹${normalCustomerRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-primary' },
+    { label: 'Retailer Customer Revenue', value: `₹${retailerCustomerRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-warning' },
   ];
 
   return (
@@ -95,18 +120,19 @@ export default function Dashboard() {
       </div>
 
       {/* Today's Summary */}
-      <div className="glass-card p-4 sm:p-6">
+      {/* <div className="glass-card p-4 sm:p-6">
         <h3 className="font-display text-lg font-semibold mb-2">Today's Summary</h3>
         <div className="flex flex-wrap gap-6">
           <div>
-            <p className="text-sm text-muted-foreground">Bills Generated</p>
-            <p className="text-xl font-bold">{todayBillsCount}</p>
+            <p className="text-sm text-muted-foreground">Bills Generated Today</p>
+            <p className="text-xl font-bold text-primary">{todayBillsCount}</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Recent Bills */}
-      {recentBills.length > 0 && (
+
+      {/* {recentBills.length > 0 && (
         <div className="glass-card p-4 sm:p-6 animate-slide-up">
           <h3 className="font-display text-lg font-semibold mb-4">Recent Bills</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -123,14 +149,17 @@ export default function Dashboard() {
                   <tr key={idx} className="table-row-hover border-b border-border/50">
                     <td className="py-2.5 px-4 sm:px-2">{bill.customerName}</td>
                     <td className="py-2.5 px-4 sm:px-2 text-muted-foreground">{bill.date}</td>
-                    <td className="py-2.5 px-4 sm:px-2 text-right font-semibold">₹{bill.total.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-4 sm:px-2 text-right font-semibold">
+                      ₹{bill.total.toLocaleString('en-IN')}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+      )} */}
+      
     </div>
   );
 }

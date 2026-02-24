@@ -11,7 +11,7 @@ import api from '@/lib/axios';
 interface LowStockProduct {
   _id: string;
   id: string;
-  name: string;
+  name: string;   
   category: string;
   code: string;
   stock: number;

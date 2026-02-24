@@ -354,7 +354,7 @@ export default function Billing() {
 
         {/* Right: Bill Summary */}
         <div className="space-y-4">
-          <div className="glass-card p-4 sm:p-6 space-y-4 animate-slide-up sticky top-20" style={{ animationDelay: '150ms', position: 'relative', zIndex: 1 }}>
+          <div className="glass-card p-4 sm:p-6 space-y-4 animate-slide-up sticky top-3" style={{ animationDelay: '150ms', position: 'relative', zIndex: 1 }}>
             <h3 className="font-display text-lg font-semibold">Bill Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span>{items.length}</span></div>
@@ -367,7 +367,7 @@ export default function Billing() {
                 <span className="text-primary">₹{total.toLocaleString('en-IN')}</span>
               </div>
             </div>
-            <Button onClick={generateBill} className="w-full gradient-primary text-primary-foreground hover-glow cursor-pointer" disabled={items.length === 0 || !customerName.trim()}>
+            <Button onClick={generateBill} className="w-full bg-gradient-to-r from-green-700 to-green-800 hover:from-green-800 hover:to-green-950 text-white cursor-pointer" disabled={items.length === 0 || !customerName.trim()}>
               Generate Bill
             </Button>
           </div>
