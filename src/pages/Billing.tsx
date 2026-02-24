@@ -317,6 +317,21 @@ export default function Billing() {
             </div>
           </div>
 
+
+
+                   {/* 🔥 ADD BUTTON (NEW) */}
+  <div className="space-y-1 flex items-end">
+    <Button
+      className="w-full gap-1"
+      onClick={() => {
+        const product = filteredProducts[0];
+        if (product) selectProduct(product);
+      }}
+      disabled={!filteredProducts.length}
+    >
+      <Plus size={14} /> Add
+    </Button>
+  </div>
           {/* Items Table */}
           {items.length > 0 && (
             <div className="glass-card overflow-hidden animate-slide-up" style={{ animationDelay: '200ms', position: 'relative', zIndex: 1 }}>
