@@ -188,6 +188,11 @@ export default function Billing() {
       if (apiBill?.createdAt) {
         billData.date = new Date(apiBill.createdAt).toISOString().split('T')[0];
       }
+      // Refetch products to update stock counts
+      try {
+        const prodRes = await api.get('/products');
+        setAllProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
+      } catch {}
       toast({ title: 'Bill Generated!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
     } catch {
       toast({ title: 'Bill Generated (offline)!', description: `Total: ₹${total.toLocaleString('en-IN')}` });
