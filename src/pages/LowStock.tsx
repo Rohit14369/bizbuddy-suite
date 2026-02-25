@@ -74,7 +74,7 @@ export default function LowStock() {
         // Fallback to products API
         api.get('/products').then(res => {
           const all = Array.isArray(res.data) ? res.data : [];
-          setLowStock(all.filter((p: any) => p.stock <= 10).map((p: any) => ({
+          setLowStock(all.filter((p: any) => p.stock <= 50).map((p: any) => ({
             _id: p._id, id: p._id, name: p.name, category: p.category || '',
             code: p.code || '', stock: p.stock, normalPrice: p.normalPrice || 0,
             retailerPrice: p.retailerPrice || 0, buyingPrice: p.buyingPrice || 0, image: p.image,
@@ -141,7 +141,7 @@ export default function LowStock() {
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground">Products with stock ≤ 10 units are shown here automatically from backend.</p>
+      <p className="text-sm text-muted-foreground">Products with stock ≤ 50 units are shown here automatically.</p>
 
       {!isAdmin && (
         <div className="glass-card p-3 border-l-4 border-l-accent animate-fade-in">
@@ -167,14 +167,14 @@ export default function LowStock() {
                   <p className="text-xs text-muted-foreground">{p.category} • Code: {p.code}</p>
                   <p className="text-xs text-muted-foreground mt-1">Normal: ₹{p.normalPrice} | Retailer: ₹{p.retailerPrice}</p>
                 </div>
-                <div className={`text-2xl font-bold ${p.stock <= 3 ? 'text-destructive' : 'text-warning'}`}>
-                  {p.stock}
+              <div className={`text-2xl font-bold ${p.stock === 0 ? 'text-destructive' : p.stock <= 10 ? 'text-destructive' : 'text-warning'}`}>
+                  {p.stock === 0 ? '⛔ 0' : p.stock}
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-2">
                 <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${p.stock <= 3 ? 'bg-destructive' : 'bg-warning'}`}
+                    className={`h-full rounded-full transition-all duration-500 ${p.stock <= 10 ? 'bg-destructive' : 'bg-warning'}`}
                     style={{ width: `${Math.min((p.stock / 50) * 100, 100)}%` }}
                   />
                 </div>

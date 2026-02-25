@@ -229,11 +229,11 @@ export default function Products() {
                 />
                 <div className="absolute top-2 right-2">
                   <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                    p.stock <= 3 ? 'bg-destructive/90 text-destructive-foreground' :
-                    p.stock <= 10 ? 'bg-warning/90 text-warning-foreground' :
+                    p.stock === 0 ? 'bg-destructive/90 text-destructive-foreground' :
+                    p.stock <= 50 ? 'bg-warning/90 text-warning-foreground' :
                     'bg-success/90 text-success-foreground'
                   }`}>
-                    Stock: {p.stock}
+                    {p.stock === 0 ? '⛔ Out of Stock' : p.stock <= 50 ? `⚠️ Low: ${p.stock}` : `Stock: ${p.stock}`}
                   </span>
                 </div>
                 {p.category && (
