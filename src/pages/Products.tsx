@@ -54,7 +54,7 @@ export default function Products() {
       normalPrice: Number(form.normalPrice),
       retailerPrice: Number(form.retailerPrice),
       buyingPrice: Number(form.buyingPrice),
-      stock: Number(form.stock),
+      stock: Number(form.stock),  
     };
 
     try {
