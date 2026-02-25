@@ -300,6 +300,33 @@ export default function Customers() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirm.step > 0}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm({ step: 0, customer: null }); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+          </DialogHeader>
+          {deleteConfirm.customer && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete <strong>{deleteConfirm.customer.name}</strong> and all their {deleteConfirm.customer.billCount} bill(s)?
+                This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDeleteConfirm({ step: 0, customer: null })}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteAllCustomerBills}>
+                  <Trash2 size={14} className="mr-1" /> Delete All Bills
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
