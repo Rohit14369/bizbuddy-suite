@@ -333,9 +333,11 @@ export default function Billing() {
     );
 
     try {
-      // Update bill on backend
+      // Update bill on backend - only send editable fields
       await api.put(`/bills/${editingBill._id}`, {
-        ...editingBill,
+        customerName: editingBill.customerName,
+        customerType: editingBill.customerType,
+        discount: editingBill.discount,
         items: editBillItems,
         subtotal: newSubtotal,
         total: newTotal,
