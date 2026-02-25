@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore, BillItem } from '@/context/StoreContext';
-import { Plus, Trash2, Printer, History, Send, Search } from 'lucide-react';
+import { Plus, Trash2, Printer, History, Send, Search, Pencil, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +25,7 @@ interface ApiBill {
   customerName: string;
   customerType: string;
   discount: number;
-  items: { productName: string; category: string; price: number; quantity: number; total: number }[];
+  items: { productName: string; category: string; price: number; quantity: number; total: number; productId?: string }[];
   subtotal: number;
   total: number;
   createdAt: string;
@@ -46,6 +46,11 @@ export default function Billing() {
   const [lastBill, setLastBill] = useState<any>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [billHistory, setBillHistory] = useState<ApiBill[]>([]);
+
+  // Edit bill state
+  const [editingBill, setEditingBill] = useState<ApiBill | null>(null);
+  const [editBillItems, setEditBillItems] = useState<ApiBill['items']>([]);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   // Product search
   const [productSearch, setProductSearch] = useState('');
@@ -89,6 +94,25 @@ export default function Billing() {
 
   const addSelectedProduct = () => {
     if (!selectedProduct || itemQty <= 0) return;
+
+    // Stock validation
+    if (selectedProduct.stock === 0) {
+      toast({ title: 'Out of Stock!', description: `${selectedProduct.name} has 0 stock. Cannot add to bill.`, variant: 'destructive' });
+      return;
+    }
+
+    const existingQty = items.find(i => i.productId === selectedProduct._id)?.quantity || 0;
+    const totalRequestedQty = existingQty + itemQty;
+
+    if (totalRequestedQty > selectedProduct.stock) {
+      toast({ 
+        title: 'Insufficient Stock!', 
+        description: `${selectedProduct.name} has only ${selectedProduct.stock} units available. You already have ${existingQty} in bill.`, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     const price = customerType === 'retailer' ? selectedProduct.retailerPrice : selectedProduct.normalPrice;
     const existing = items.find(i => i.productId === selectedProduct._id);
     if (existing) {
@@ -155,6 +179,20 @@ export default function Billing() {
       return;
     }
 
+    // Final stock validation before generating
+    for (const item of items) {
+      const product = allProducts.find(p => p._id === item.productId);
+      if (!product) continue;
+      if (product.stock === 0) {
+        toast({ title: 'Out of Stock!', description: `${item.productName} is out of stock. Remove it from bill.`, variant: 'destructive' });
+        return;
+      }
+      if (item.quantity > product.stock) {
+        toast({ title: 'Insufficient Stock!', description: `${item.productName} has only ${product.stock} units. Reduce quantity.`, variant: 'destructive' });
+        return;
+      }
+    }
+
     const billPayload = {
       customerName: customerName.trim(),
       customerType,
@@ -162,6 +200,7 @@ export default function Billing() {
       items: items.map(i => {
         const product = allProducts.find(p => p._id === i.productId);
         return {
+          productId: i.productId,
           productName: i.productName,
           category: product?.category || 'general',
           price: i.price,
@@ -194,7 +233,6 @@ export default function Billing() {
         const billedItem = items.find(i => i.productId === p._id);
         if (billedItem) {
           const newStock = Math.max(0, p.stock - billedItem.quantity);
-          // Fire & forget stock update to backend
           api.put(`/products/${p._id}`, { ...p, stock: newStock }).catch(() => {});
           return { ...p, stock: newStock };
         }
@@ -240,14 +278,95 @@ export default function Billing() {
     setShowHistory(true);
   };
 
-  const deleteBill = async (id: string) => {
+  const deleteBill = async (bill: ApiBill) => {
     try {
-      await api.delete(`/bills/${id}`);
-      toast({ title: 'Bill Deleted' });
-      setBillHistory(prev => prev.filter(b => b._id !== id));
+      await api.delete(`/bills/${bill._id}`);
+      
+      // Restore stock for all items in deleted bill
+      const updatedProducts = allProducts.map(p => {
+        const billItem = bill.items.find(i => i.productName === p.name || i.productId === p._id);
+        if (billItem) {
+          const restoredStock = p.stock + billItem.quantity;
+          api.put(`/products/${p._id}`, { ...p, stock: restoredStock }).catch(() => {});
+          return { ...p, stock: restoredStock };
+        }
+        return p;
+      });
+      setAllProducts(updatedProducts);
+
+      toast({ title: 'Bill Deleted', description: 'Stock has been restored for all items.' });
+      setBillHistory(prev => prev.filter(b => b._id !== bill._id));
     } catch {
       toast({ title: 'Error deleting bill', variant: 'destructive' });
     }
+  };
+
+  // ===== EDIT BILL (Product Return) =====
+  const openEditBill = (bill: ApiBill) => {
+    setEditingBill(bill);
+    setEditBillItems([...bill.items]);
+    setShowEditDialog(true);
+  };
+
+  const removeEditItem = (index: number) => {
+    setEditBillItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const saveEditedBill = async () => {
+    if (!editingBill) return;
+
+    // If all items removed, delete the bill
+    if (editBillItems.length === 0) {
+      await deleteBill(editingBill);
+      setShowEditDialog(false);
+      setEditingBill(null);
+      return;
+    }
+
+    const newSubtotal = editBillItems.reduce((s, i) => s + i.total, 0);
+    const disc = editingBill.discount || 0;
+    const newTotal = newSubtotal - (newSubtotal * disc / 100);
+
+    // Find removed items to restore stock
+    const removedItems = editingBill.items.filter(
+      origItem => !editBillItems.find(ei => ei.productName === origItem.productName)
+    );
+
+    try {
+      // Update bill on backend
+      await api.put(`/bills/${editingBill._id}`, {
+        ...editingBill,
+        items: editBillItems,
+        subtotal: newSubtotal,
+        total: newTotal,
+      });
+
+      // Restore stock for removed items
+      const updatedProducts = allProducts.map(p => {
+        const removedItem = removedItems.find(i => i.productName === p.name || i.productId === p._id);
+        if (removedItem) {
+          const restoredStock = p.stock + removedItem.quantity;
+          api.put(`/products/${p._id}`, { ...p, stock: restoredStock }).catch(() => {});
+          return { ...p, stock: restoredStock };
+        }
+        return p;
+      });
+      setAllProducts(updatedProducts);
+
+      // Update bill in history list
+      setBillHistory(prev => prev.map(b => 
+        b._id === editingBill._id 
+          ? { ...b, items: editBillItems, subtotal: newSubtotal, total: newTotal }
+          : b
+      ));
+
+      toast({ title: 'Bill Updated!', description: `Returned ${removedItems.length} item(s). Stock restored.` });
+    } catch {
+      toast({ title: 'Error updating bill', variant: 'destructive' });
+    }
+
+    setShowEditDialog(false);
+    setEditingBill(null);
   };
 
   const selectClass = "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 input-focus";
@@ -316,6 +435,8 @@ export default function Billing() {
                             <p className="font-medium text-sm truncate">{p.name}</p>
                             <p className="text-xs text-muted-foreground truncate">
                               Code: {p.code} • Stock: {p.stock} • {p.category}
+                              {p.stock === 0 && <span className="text-destructive font-semibold ml-1">OUT OF STOCK</span>}
+                              {p.stock > 0 && p.stock <= 50 && <span className="text-warning font-semibold ml-1">LOW STOCK</span>}
                             </p>
                           </div>
                           <div className="text-right flex-shrink-0">
@@ -465,9 +586,12 @@ export default function Billing() {
                       <p className="font-semibold">{bill.customerName} <span className="text-xs text-muted-foreground">({bill.customerType})</span></p>
                       <p className="text-xs text-muted-foreground">{new Date(bill.createdAt).toLocaleDateString('en-IN')}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <p className="font-bold text-primary">₹{bill.total.toLocaleString('en-IN')}</p>
-                      <Button size="sm" variant="destructive" onClick={() => deleteBill(bill._id)} className="text-xs">
+                      <Button size="sm" variant="outline" onClick={() => openEditBill(bill)} className="text-xs gap-1">
+                        <Pencil size={12} /> Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteBill(bill)} className="text-xs">
                         <Trash2 size={12} />
                       </Button>
                     </div>
@@ -479,6 +603,74 @@ export default function Billing() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Bill / Return Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <RotateCcw size={18} /> Edit Bill / Product Return
+            </DialogTitle>
+          </DialogHeader>
+          {editingBill && (
+            <div className="space-y-4">
+              <div className="text-sm">
+                <p><strong>Customer:</strong> {editingBill.customerName} ({editingBill.customerType})</p>
+                <p className="text-muted-foreground text-xs">Remove items to process returns. Stock will be restored automatically.</p>
+              </div>
+
+              {editBillItems.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>All items removed. Bill will be deleted.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {editBillItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                      <div>
+                        <p className="font-medium text-sm">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">{item.quantity} × ₹{item.price} = ₹{item.total}</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => removeEditItem(idx)} className="text-xs gap-1 text-destructive hover:bg-destructive/10">
+                        <RotateCcw size={12} /> Return
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Updated totals */}
+              {editBillItems.length > 0 && (
+                <div className="border-t border-border pt-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">New Subtotal</span>
+                    <span>₹{editBillItems.reduce((s, i) => s + i.total, 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  {(editingBill.discount || 0) > 0 && (
+                    <div className="flex justify-between text-success">
+                      <span>Discount ({editingBill.discount}%)</span>
+                      <span>-₹{(editBillItems.reduce((s, i) => s + i.total, 0) * (editingBill.discount || 0) / 100).toFixed(0)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>New Total</span>
+                    <span className="text-primary">
+                      ₹{(editBillItems.reduce((s, i) => s + i.total, 0) - (editBillItems.reduce((s, i) => s + i.total, 0) * (editingBill.discount || 0) / 100)).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+                <Button onClick={saveEditedBill} className="gradient-primary text-primary-foreground">
+                  {editBillItems.length === 0 ? 'Delete Bill' : 'Save Changes'}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

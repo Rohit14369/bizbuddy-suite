@@ -1,5 +1,5 @@
 import { useStore } from '@/context/StoreContext';
-import { Package, ShoppingCart, Users, AlertTriangle, TrendingUp, IndianRupee } from 'lucide-react';
+import { Package, ShoppingCart, Users, AlertTriangle, TrendingUp, IndianRupee, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api from '@/lib/axios';
@@ -27,6 +27,8 @@ interface DashboardData {
 export default function Dashboard() {
   const { products, bills, customers } = useStore();
   const [apiData, setApiData] = useState<DashboardData | null>(null);
+  const [apiBills, setApiBills] = useState<any[]>([]);
+  const [apiProducts, setApiProducts] = useState<any[]>([]);
 
   useEffect(() => {
     api.get('/dashboard')
@@ -36,13 +38,37 @@ export default function Dashboard() {
         }
       })
       .catch(() => {});
+
+    // Fetch bills and products for profit calculation
+    api.get('/bills').then(res => setApiBills(Array.isArray(res.data) ? res.data : [])).catch(() => {});
+    api.get('/products').then(res => setApiProducts(Array.isArray(res.data) ? res.data : [])).catch(() => {});
   }, []);
 
   const todayDateString = new Date().toLocaleDateString('en-CA'); 
 
   const totalStock = apiData?.totalStock ?? products.reduce((s, p) => s + p.stock, 0);
-  const lowStockCount = apiData?.lowStockItems ?? products.filter(p => p.stock <= 10).length;
+  const lowStockCount = apiData?.lowStockItems ?? (apiProducts.length > 0 ? apiProducts.filter(p => p.stock <= 50).length : products.filter(p => p.stock <= 50).length);
   const totalRevenue = apiData?.totalRevenue ?? bills.reduce((s, b) => s + b.total, 0);
+
+  // Calculate Total Profit: sum of (sellingPrice - buyingPrice) * quantity for all bill items
+  const totalProfit = (() => {
+    const prodList = apiProducts.length > 0 ? apiProducts : products;
+    const billList = apiBills.length > 0 ? apiBills : bills;
+    let profit = 0;
+    billList.forEach((bill: any) => {
+      (bill.items || []).forEach((item: any) => {
+        // Find the product to get buyingPrice
+        const product = prodList.find((p: any) => 
+          p.name === item.productName || p._id === item.productId || p.id === item.productId
+        );
+        const buyingPrice = product?.buyingPrice || 0;
+        const sellingPrice = item.price || 0;
+        const qty = item.quantity || 0;
+        profit += (sellingPrice - buyingPrice) * qty;
+      });
+    });
+    return profit;
+  })();
 
   const normalCustomerRevenue =
     apiData?.normalCustomerRevenue ??
@@ -66,20 +92,6 @@ export default function Dashboard() {
   const totalProducts = apiData?.totalProducts ?? products.length;
   const totalCustomers = apiData?.totalCustomers ?? customers.length;
 
-  const recentBills =
-    apiData?.recentBills ??
-    bills.slice(-5).reverse().map(b => ({
-      billNo: b.billNo,
-      customerName: b.customerName,
-      customerType: b.customerType,
-      date: new Date(b.date).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
-      total: b.total,
-    }));
-
   const stats = [
     { label: 'Total Products', value: totalProducts, icon: Package, color: 'text-primary' },
     { label: 'Total Stock', value: totalStock + ' units', icon: TrendingUp, color: 'text-emerald-light' },
@@ -87,6 +99,7 @@ export default function Dashboard() {
     { label: 'Total Customers', value: totalCustomers, icon: Users, color: 'text-accent' },
     { label: "Today's Bills", value: todayBillsCount, icon: ShoppingCart, color: 'text-primary' },
     { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-success' },
+    { label: 'Total Profit', value: `₹${totalProfit.toLocaleString('en-IN')}`, icon: TrendingDown, color: totalProfit >= 0 ? 'text-success' : 'text-destructive' },
     { label: 'Normal Customer Revenue', value: `₹${normalCustomerRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-primary' },
     { label: 'Retailer Customer Revenue', value: `₹${retailerCustomerRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-warning' },
   ];
@@ -118,48 +131,6 @@ export default function Dashboard() {
           return stat.link ? <Link to={stat.link} key={i}>{Card}</Link> : <div key={i}>{Card}</div>;
         })}
       </div>
-
-      {/* Today's Summary */}
-      {/* <div className="glass-card p-4 sm:p-6">
-        <h3 className="font-display text-lg font-semibold mb-2">Today's Summary</h3>
-        <div className="flex flex-wrap gap-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Bills Generated Today</p>
-            <p className="text-xl font-bold text-primary">{todayBillsCount}</p>
-          </div>
-        </div>
-      </div> */}
-
-      {/* Recent Bills */}
-
-      {/* {recentBills.length > 0 && (
-        <div className="glass-card p-4 sm:p-6 animate-slide-up">
-          <h3 className="font-display text-lg font-semibold mb-4">Recent Bills</h3>
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full text-sm min-w-[400px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-4 sm:px-2 text-muted-foreground font-medium">Customer</th>
-                  <th className="text-left py-2 px-4 sm:px-2 text-muted-foreground font-medium">Bill Generated Date</th>
-                  <th className="text-right py-2 px-4 sm:px-2 text-muted-foreground font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentBills.map((bill, idx) => (
-                  <tr key={idx} className="table-row-hover border-b border-border/50">
-                    <td className="py-2.5 px-4 sm:px-2">{bill.customerName}</td>
-                    <td className="py-2.5 px-4 sm:px-2 text-muted-foreground">{bill.date}</td>
-                    <td className="py-2.5 px-4 sm:px-2 text-right font-semibold">
-                      ₹{bill.total.toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )} */}
-      
     </div>
   );
 }
